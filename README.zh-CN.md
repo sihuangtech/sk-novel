@@ -1,7 +1,3 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 # SK Novel
 
 SK Novel 是一个专注于美学和用户体验的现代化小说阅读与写作的高级平台。它无缝连接了作者与读者，为创作者提供强大的 AI 辅助工具，同时为读者带来沉浸式的阅读享受。
