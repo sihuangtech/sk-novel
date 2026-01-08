@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  READER
+  AUTHOR
+}
+
+enum MembershipTier {
+  FREE
+  MEMBER
+  SUPPORTER
+}
+
+enum NovelStatus {
+  ONGOING
+  COMPLETED
+}
+
+enum ChapterAccess {
+  PUBLIC
+  MEMBERS
+  SUPPORTERS
+}
+
+model User {
+  id                  String         @id @default(cuid())
+  username            String         @unique
+  email               String         @unique
+  password            String // Hashed password
+  role                UserRole       @default(READER)
+  tier                MembershipTier @default(FREE)
+  coins               Int            @default(0)
+  isSubscribedToEmail Boolean        @default(false)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  authoredNovels   Novel[]     @relation("AuthorNovels")
+  bookmarks        Bookmark[]
+  unlockedChapters UnlockedChapter[]
+  comments         Comment[]
+}
+
+model Novel {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  coverUrl    String?
+  tags        String[]
+  status      NovelStatus @default(ONGOING)
+  views       Int         @default(0)
+  rating      Float       @default(0.0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  authorId String
+  author   User   @relation("AuthorNovels", fields: [authorId], references: [id])
+
+  chapters  Chapter[]
+  bookmarks Bookmark[]
+}
+
+model Chapter {
+  id          String        @id @default(cuid())
+  title       String
+  content     String // Could be large, Text type usually in Postgres
+  wordCount   Int
+  access      ChapterAccess @default(PUBLIC)
+  price       Int           @default(0)
+  order       Int
+  publishedAt DateTime      @default(now())
+  isDraft     Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  novelId String
+  novel   Novel  @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  unlockedBy       UnlockedChapter[]
+  newsletterChecks NewsletterCampaign[]
+  comments         Comment[]
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  novelId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+}
+
+model UnlockedChapter {
+  id        String   @id @default(cuid())
+  userId    String
+  chapterId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  userId    String
+  chapterId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+model NewsletterCampaign {
+  id           String   @id @default(cuid())
+  chapterId    String
+  chapterTitle String
+  sentAt       DateTime @default(now())
+  recipients   Int
+  openRate     Float
+  clickRate    Float
+  subject      String
+
+  chapter Chapter @relation(fields: [chapterId], references: [id])
+}
