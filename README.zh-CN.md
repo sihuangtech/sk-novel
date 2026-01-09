@@ -44,8 +44,8 @@ SK Novel 集成了 Google Gemini AI (`gemini-3-flash-preview`) 为创作过程�
 
 1.  **克隆仓库**
     ```bash
-    git clone https://github.com/yourusername/sk-novels.git
-    cd sk-novels
+    git clone https://github.com/sihuangtech/sk-novel.git
+    cd sk-novel
     ```
 
 2.  **安装依赖**

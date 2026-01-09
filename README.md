@@ -44,8 +44,8 @@ Follow these steps to get a local copy up and running.
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/sk-novels.git
-    cd sk-novels
+    git clone https://github.com/sihuangtech/sk-novel.git
+    cd sk-novel
     ```
 
 2.  **Install dependencies**
