@@ -4,15 +4,15 @@ import { AppProvider } from './store';
 import { PublicLayout, AdminLayout } from './components/Layout';
 
 // Pages
-import Home from './pages/public/Home';
-import NovelDetail from './pages/public/NovelDetail';
-import Reader from './pages/public/Reader';
-import Bookshelf from './pages/public/Bookshelf';
+import Home from './views/public/Home';
+import NovelDetail from './views/public/NovelDetail';
+import Reader from './views/public/Reader';
+import Bookshelf from './views/public/Bookshelf';
 
-import Dashboard from './pages/admin/Dashboard';
-import NovelManager from './pages/admin/NovelManager';
-import ChapterEditor from './pages/admin/ChapterEditor';
-import NewsletterStats from './pages/admin/NewsletterStats';
+import Dashboard from './views/admin/Dashboard';
+import NovelManager from './views/admin/NovelManager';
+import ChapterEditor from './views/admin/ChapterEditor';
+import NewsletterStats from './views/admin/NewsletterStats';
 
 const App = () => {
   return (

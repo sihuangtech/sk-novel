@@ -28,6 +28,23 @@ enum ChapterAccess {
   SUPPORTERS
 }
 
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentProvider {
+  CREEM
+  ALIPAY
+  WECHAT
+}
+
+enum PaymentType {
+  RECHARGE
+  UPGRADE
+}
+
 model User {
   id                  String         @id @default(cuid())
   username            String         @unique
@@ -37,6 +54,8 @@ model User {
   tier                MembershipTier @default(FREE)
   coins               Int            @default(0)
   isSubscribedToEmail Boolean        @default(false)
+  resetToken          String?
+  resetTokenExpiry    DateTime?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -44,6 +63,7 @@ model User {
   bookmarks        Bookmark[]
   unlockedChapters UnlockedChapter[]
   comments         Comment[]
+  payments         Payment[]
 }
 
 model Novel {
@@ -63,6 +83,7 @@ model Novel {
 
   chapters  Chapter[]
   bookmarks Bookmark[]
+  comments  Comment[]
 }
 
 model Chapter {
@@ -86,6 +107,18 @@ model Chapter {
   comments         Comment[]
 }
 
+model UnlockedChapter {
+  id        String   @id @default(cuid())
+  userId    String
+  chapterId String
+  unlockedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+}
+
 model Bookmark {
   id        String   @id @default(cuid())
   userId    String
@@ -98,39 +131,75 @@ model Bookmark {
   @@unique([userId, novelId])
 }
 
-model UnlockedChapter {
-  id        String   @id @default(cuid())
-  userId    String
-  chapterId String
-  createdAt DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, chapterId])
-}
-
 model Comment {
   id        String   @id @default(cuid())
   content   String
   createdAt DateTime @default(now())
-
+  updatedAt DateTime @updatedAt
+  
   userId    String
-  chapterId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  novelId   String?
+  novel     Novel?   @relation(fields: [novelId], references: [id], onDelete: Cascade)
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapterId String?
+  chapter   Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 }
 
 model NewsletterCampaign {
-  id           String   @id @default(cuid())
-  chapterId    String
-  chapterTitle String
-  sentAt       DateTime @default(now())
-  recipients   Int
-  openRate     Float
-  clickRate    Float
-  subject      String
+  id          String   @id @default(cuid())
+  subject     String
+  content     String
+  sentAt      DateTime @default(now())
+  
+  chapterId   String?
+  chapter     Chapter? @relation(fields: [chapterId], references: [id])
+}
 
-  chapter Chapter @relation(fields: [chapterId], references: [id])
+model Payment {
+  id          String          @id @default(cuid())
+  userId      String
+  amount      Float
+  currency    String          @default("USD")
+  status      PaymentStatus   @default(PENDING)
+  provider    PaymentProvider
+  type        PaymentType
+  
+  // For Recharge
+  coinsAmount Int?
+  
+  // For Upgrade
+  targetTier  MembershipTier?
+  
+  // External Reference (e.g., Creem checkout ID, Alipay trade no)
+  externalId  String?
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PricingPlan {
+  id            String          @id @default(cuid())
+  name          String
+  description   String?
+  price         Float
+  currency      String          @default("USD")
+  type          PaymentType     // RECHARGE or UPGRADE
+  
+  // For Upgrade
+  tier          MembershipTier?
+  
+  // For Recharge
+  coinsAmount   Int?
+  bonusCoins    Int             @default(0)
+  
+  // For Creem Integration
+  creemProductId String?
+  
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }

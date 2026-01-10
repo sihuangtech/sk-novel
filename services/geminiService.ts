@@ -2,9 +2,9 @@
 import { GoogleGenAI } from "@google/genai";
 
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn("API_KEY is not set. AI features will fail.");
+    console.warn("GEMINI_API_KEY is not set. AI features will fail.");
     return null;
   }
   return new GoogleGenAI({ apiKey });

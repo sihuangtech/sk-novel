@@ -1,18 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useStore } from '../../store';
+import { useToast } from '../../contexts/ToastContext';
 import { ChapterAccess, MembershipTier } from '../../types';
 import { ArrowLeft, Settings, ChevronLeft, ChevronRight, Lock, Share2, Heart, MessageSquare } from 'lucide-react';
 
 const Reader: React.FC = () => {
-  const { novelId, chapterId } = useParams<{ novelId: string, chapterId: string }>();
-  const navigate = useNavigate();
-  const { novels, getNovelChapters, currentUser, unlockChapter, updateUser } = useStore();
+  const params = useParams();
+  const novelId = params?.novelId as string;
+  const chapterId = params?.chapterId as string;
+  const router = useRouter();
+  const { novels, getNovelChapters, currentUser, unlockChapter } = useStore();
+  const { showToast } = useToast();
   
   const [fontSize, setFontSize] = useState(20);
   const [theme, setTheme] = useState<'light' | 'sepia' | 'dark'>('light');
   const [showSettings, setShowSettings] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [unlocking, setUnlocking] = useState(false);
 
   const novel = novels.find(n => n.id === novelId);
   const chapters = novelId ? getNovelChapters(novelId) : [];
@@ -48,6 +54,18 @@ const Reader: React.FC = () => {
 
   const access = hasAccess();
 
+  const handleUnlock = async () => {
+    if (!currentUser || !currentChapter) return;
+    setUnlocking(true);
+    const success = await unlockChapter(currentChapter.id);
+    setUnlocking(false);
+    if (!success) {
+      showToast("Failed to unlock. Please check your balance.", 'error');
+    } else {
+      showToast("Chapter unlocked successfully!", 'success');
+    }
+  };
+
   const themeClasses = {
     light: 'bg-[#ffffff] text-[#1a1a1a]',
     sepia: 'bg-[#fcf8ef] text-[#433422]',
@@ -66,7 +84,7 @@ const Reader: React.FC = () => {
 
       {/* Minimal Header */}
       <nav className="fixed top-0 left-0 w-full h-16 flex items-center justify-between px-6 z-40 backdrop-blur-md bg-transparent border-b border-black/5">
-         <Link to={`/book/${novelId}`} className="p-2 hover:bg-black/5 rounded-full transition">
+         <Link href={`/book/${novelId}`} className="p-2 hover:bg-black/5 rounded-full transition">
            <ArrowLeft className="h-5 w-5" />
          </Link>
          <div className="text-xs font-bold tracking-widest uppercase opacity-50 hidden md:block">
@@ -98,37 +116,67 @@ const Reader: React.FC = () => {
              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-3">Typography: {fontSize}px</span>
              <input 
               type="range" min="16" max="28" value={fontSize} 
-              onChange={(e) => setFontSize(Number(e.target.value))} 
-              className="w-full accent-brand-500"
+              onChange={(e) => setFontSize(parseInt(e.target.value))}
+              className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
              />
            </div>
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="max-w-2xl mx-auto px-6 pt-32 pb-24">
+      <main className="max-w-3xl mx-auto px-6 py-24">
         {!access ? (
-          <div className="py-20 text-center">
-             <div className="inline-flex items-center justify-center w-20 h-20 bg-brand-50 rounded-full mb-8">
-               <Lock className="h-10 w-10 text-brand-600" />
-             </div>
-             <h2 className="text-3xl font-serif font-bold mb-4">This chapter is for members</h2>
-             <p className="text-gray-500 font-serif text-lg mb-8 leading-relaxed">
-                Unlock full access to the archives and get every new chapter delivered to your inbox.
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+             <Lock className="h-12 w-12 text-gray-300 mb-6" />
+             <h2 className="text-2xl font-serif font-bold text-gray-900 mb-2">
+               {currentUser ? 'Locked Chapter' : 'Members Only Content'}
+             </h2>
+             <p className="text-gray-500 mb-8 max-w-md">
+               {currentUser && currentChapter.price > 0 
+                 ? `This chapter requires ${currentChapter.price} coins to unlock.` 
+                 : 'This chapter is exclusive to our supporting members. Join the inner circle to continue reading.'}
              </p>
-             <div className="space-y-4 max-w-sm mx-auto">
-                <button 
-                  onClick={() => navigate('/')}
-                  className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition shadow-xl"
-                >
-                  Join the Membership
-                </button>
-                <button 
-                   onClick={() => useStore().login(false)}
-                   className="w-full py-4 bg-white border border-gray-200 text-gray-900 rounded-xl font-bold hover:bg-gray-50 transition"
-                >
-                  Sign in
-                </button>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md">
+                {!currentUser ? (
+                  <>
+                    <button 
+                      onClick={() => router.push('/')}
+                      className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition shadow-xl"
+                    >
+                      Join the Membership
+                    </button>
+                    <button 
+                       onClick={() => router.push('/login')}
+                       className="w-full py-4 bg-white border border-gray-200 text-gray-900 rounded-xl font-bold hover:bg-gray-50 transition"
+                    >
+                      Sign in
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {currentChapter.price > 0 ? (
+                        <button 
+                          onClick={handleUnlock}
+                          disabled={unlocking}
+                          className="w-full py-4 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition shadow-xl disabled:opacity-50"
+                        >
+                          {unlocking ? 'Unlocking...' : `Unlock (${currentChapter.price} Coins)`}
+                        </button>
+                    ) : (
+                        <button 
+                          onClick={() => router.push('/')}
+                          className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition shadow-xl"
+                        >
+                          Upgrade Membership
+                        </button>
+                    )}
+                    <button 
+                       onClick={() => router.push('/')}
+                       className="w-full py-4 bg-white border border-gray-200 text-gray-900 rounded-xl font-bold hover:bg-gray-50 transition"
+                    >
+                      Back to Home
+                    </button>
+                  </>
+                )}
              </div>
           </div>
         ) : (
@@ -165,7 +213,7 @@ const Reader: React.FC = () => {
                <div className="flex justify-between w-full font-sans">
                   <button 
                     disabled={!prevChapter}
-                    onClick={() => navigate(`/read/${novelId}/${prevChapter?.id}`)}
+                    onClick={() => router.push(`/read/${novelId}/${prevChapter?.id}`)}
                     className={`flex items-center gap-2 p-4 rounded-2xl transition ${!prevChapter ? 'opacity-20' : 'hover:bg-black/5'}`}
                   >
                     <ChevronLeft className="h-5 w-5" /> 
@@ -176,7 +224,7 @@ const Reader: React.FC = () => {
                   </button>
                   <button 
                     disabled={!nextChapter}
-                    onClick={() => navigate(`/read/${novelId}/${nextChapter?.id}`)}
+                    onClick={() => router.push(`/read/${novelId}/${nextChapter?.id}`)}
                     className={`flex items-center gap-2 p-4 rounded-2xl transition ${!nextChapter ? 'opacity-20' : 'hover:bg-black/5'}`}
                   >
                     <div className="text-right">

@@ -1,30 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Novel, Chapter, UserRole, NovelStatus, ChapterAccess, MembershipTier, NewsletterCampaign } from './types';
 
-const MOCK_USER: User = {
-  id: 'u1',
-  username: 'LiteratureFan',
-  email: 'fan@example.com',
-  role: UserRole.READER,
-  tier: MembershipTier.FREE,
-  coins: 50,
-  unlockedChapters: [],
-  bookmarks: [],
-  isSubscribedToEmail: false
-};
-
-const MOCK_AUTHOR: User = {
-  id: 'a1',
-  username: 'InkMaster',
-  email: 'author@sknovel.com',
-  role: UserRole.AUTHOR,
-  tier: MembershipTier.SUPPORTER,
-  coins: 9999,
-  unlockedChapters: [],
-  bookmarks: [],
-  isSubscribedToEmail: true
-};
-
 const MOCK_NOVELS: Novel[] = [
   {
     id: 'n1',
@@ -53,16 +29,44 @@ const MOCK_CAMPAIGNS: NewsletterCampaign[] = [
   }
 ];
 
+const MOCK_CHAPTERS: Chapter[] = [
+  {
+    id: 'c1',
+    novelId: 'n1',
+    title: 'Prologue: The Neon Rain',
+    content: "The rain fell hard on the neon streets, washing away the grime of the lower city. Jack pulled his collar up. 'It's going to be a long night,' he muttered.\n\nThe city breathed with a mechanical wheeze. Every flickering light told a story of a lost soul, and Jack was the keeper of them all.",
+    wordCount: 1200,
+    access: ChapterAccess.PUBLIC,
+    price: 0,
+    order: 1,
+    publishedAt: new Date().toISOString(),
+    isDraft: false
+  },
+  {
+    id: 'c2',
+    novelId: 'n1',
+    title: 'Chapter 1: Silicon Memories',
+    content: "The circuit board hummed with arcane energy. Sarah whispered, 'This shouldn't be possible.' Her cybernetic eye zooming in on the traces. It was memory, stored not in bits, but in blood.",
+    wordCount: 1500,
+    access: ChapterAccess.MEMBERS,
+    price: 0,
+    order: 2,
+    publishedAt: new Date().toISOString(),
+    isDraft: false
+  }
+];
+
 interface AppContextType {
   currentUser: User | null;
   novels: Novel[];
   chapters: Chapter[];
   campaigns: NewsletterCampaign[];
-  login: (asAuthor: boolean) => void;
-  logout: () => void;
-  updateUser: (updates: Partial<User>) => void;
-  toggleBookmark: (novelId: string) => void;
-  unlockChapter: (chapterId: string) => boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (username: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
+  toggleBookmark: (novelId: string) => Promise<void>;
+  unlockChapter: (chapterId: string) => Promise<boolean>;
   getNovelChapters: (novelId: string) => Chapter[];
   addChapter: (chapter: Chapter, notifySubscribers?: boolean) => void;
   updateChapter: (chapter: Chapter, notifySubscribers?: boolean) => void;
@@ -77,9 +81,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [campaigns, setCampaigns] = useState<NewsletterCampaign[]>(MOCK_CAMPAIGNS);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('sk_novel_user');
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) setCurrentUser(data.user);
+        }
+      } catch (e) {
+        console.error("Failed to check auth", e);
+      }
+    };
+    checkAuth();
+
     const savedCampaigns = localStorage.getItem('sk_novel_campaigns');
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
     if (savedCampaigns) setCampaigns(JSON.parse(savedCampaigns));
   }, []);
 
@@ -87,44 +102,116 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('sk_novel_campaigns', JSON.stringify(campaigns));
   }, [campaigns]);
 
-  const login = (asAuthor: boolean) => {
-    const user = asAuthor ? MOCK_AUTHOR : MOCK_USER;
-    setCurrentUser(user);
-    localStorage.setItem('sk_novel_user', JSON.stringify(user));
+  const login = async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Login failed' };
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network error' };
+    }
   };
 
-  const logout = () => {
+  const register = async (username: string, email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Registration failed' };
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network error' };
+    }
+  };
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
     setCurrentUser(null);
-    localStorage.removeItem('sk_novel_user');
   };
 
-  const updateUser = (updates: Partial<User>) => {
+  const updateUser = async (updates: Partial<User>) => {
     if (!currentUser) return;
-    const updated = { ...currentUser, ...updates };
-    setCurrentUser(updated);
-    localStorage.setItem('sk_novel_user', JSON.stringify(updated));
+    try {
+      const res = await fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(data.user);
+      }
+    } catch (e) {
+      console.error("Failed to update user", e);
+    }
   };
 
-  const unlockChapter = (chapterId: string) => {
+  const unlockChapter = async (chapterId: string) => {
     if (!currentUser) return false;
-    const ch = chapters.find(c => c.id === chapterId);
-    if (!ch || currentUser.coins < ch.price) return false;
-
-    updateUser({
-      coins: currentUser.coins - ch.price,
-      unlockedChapters: [...currentUser.unlockedChapters, chapterId]
-    });
-    return true;
+    try {
+      const res = await fetch(`/api/chapters/${chapterId}/unlock`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+           setCurrentUser(prev => prev ? {
+             ...prev,
+             coins: data.coins,
+             unlockedChapters: [...prev.unlockedChapters, chapterId]
+           } : null);
+           return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      console.error("Failed to unlock chapter", e);
+      return false;
+    }
   };
 
-  const toggleBookmark = (novelId: string) => {
+  const toggleBookmark = async (novelId: string) => {
     if (!currentUser) return;
-    const isBookmarked = currentUser.bookmarks.includes(novelId);
-    updateUser({
-      bookmarks: isBookmarked
-        ? currentUser.bookmarks.filter(id => id !== novelId)
-        : [...currentUser.bookmarks, novelId]
-    });
+    try {
+      const res = await fetch(`/api/novels/${novelId}/bookmark`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(prev => {
+            if (!prev) return null;
+            const isBookmarked = prev.bookmarks.includes(novelId);
+            // If server says isBookmarked=true, ensure it is in list.
+            // But usually we just toggle locally based on response to be snappy, or trust server state.
+            // Let's trust server response if available, or just toggle.
+            // The API returns { success: true, isBookmarked: boolean }
+            
+            const newBookmarks = data.isBookmarked 
+                ? (isBookmarked ? prev.bookmarks : [...prev.bookmarks, novelId])
+                : prev.bookmarks.filter(id => id !== novelId);
+                
+            return { ...prev, bookmarks: newBookmarks };
+        });
+      }
+    } catch (e) {
+      console.error("Failed to toggle bookmark", e);
+    }
   };
 
   const getNovelChapters = (novelId: string) => {
@@ -157,39 +244,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      currentUser, novels, chapters, campaigns, login, logout, updateUser, toggleBookmark, unlockChapter, getNovelChapters, addChapter, updateChapter
+      currentUser, novels, chapters, campaigns, login, register, logout, updateUser, toggleBookmark, unlockChapter, getNovelChapters, addChapter, updateChapter
     }}>
       {children}
     </AppContext.Provider>
   );
 };
-
-const MOCK_CHAPTERS: Chapter[] = [
-  {
-    id: 'c1',
-    novelId: 'n1',
-    title: 'Prologue: The Neon Rain',
-    content: "The rain fell hard on the neon streets, washing away the grime of the lower city. Jack pulled his collar up. 'It's going to be a long night,' he muttered.\n\nThe city breathed with a mechanical wheeze. Every flickering light told a story of a lost soul, and Jack was the keeper of them all.",
-    wordCount: 1200,
-    access: ChapterAccess.PUBLIC,
-    price: 0,
-    order: 1,
-    publishedAt: new Date().toISOString(),
-    isDraft: false
-  },
-  {
-    id: 'c2',
-    novelId: 'n1',
-    title: 'Chapter 1: Silicon Memories',
-    content: "The circuit board hummed with arcane energy. Sarah whispered, 'This shouldn't be possible.' Her cybernetic eye zooming in on the traces. It was memory, stored not in bits, but in blood.",
-    wordCount: 1500,
-    access: ChapterAccess.MEMBERS,
-    price: 0,
-    order: 2,
-    publishedAt: new Date().toISOString(),
-    isDraft: false
-  }
-];
 
 export const useStore = () => {
   const context = useContext(AppContext);
